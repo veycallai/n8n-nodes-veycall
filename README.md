@@ -1,0 +1,54 @@
+# n8n-nodes-veycall
+
+Your [VeyCall](https://veycall.com) AI agent in n8n. It answers your customers on Gmail, Outlook, Messenger, Instagram, Slack, Mattermost, Discord, Microsoft Teams, WhatsApp Business, SMS or any other platform n8n can read and write, in text and in voice notes, exactly as it does on WhatsApp and Telegram in VeyCall. Your leads, conversations and knowledge are one node away.
+
+[Installation](#installation) · [Credentials](#credentials) · [What it does](#what-it-does) · [Example workflows](#example-workflows) · [Compatibility](#compatibility)
+
+## Installation
+
+In n8n: **Settings > Community nodes > Install**, then enter `n8n-nodes-veycall`. See the [n8n guide to community nodes](https://docs.n8n.io/integrations/community-nodes/installation/).
+
+## Credentials
+
+1. In the VeyCall dashboard, activate **API and webhooks**.
+2. Create an API key (it starts with `vc_live_`).
+3. In n8n, add a **VeyCall API** credential and paste the key.
+
+The key acts for your organization. It can answer messages, manage leads, conversations, knowledge and webhooks, and read agents. Billing, team and phone numbers stay in the dashboard.
+
+## What it does
+
+### VeyCall node
+
+| Resource | Operations |
+| --- | --- |
+| **Message** | **Answer**: send a customer's message (text, voice note, photos, places, earlier messages) and get your agent's reply. Voice notes are transcribed, and the reply can come back in the agent's voice as binary field `audio`. **Record Business Reply**: you answered by hand, the agent steps back in that conversation. **Get Approved Replies**, **Mark Reply Sent** (approval mode). |
+| **Lead** | Create, Get, Get Many, Update, Delete |
+| **Conversation** | Get, Get Many, Get Messages (transcript), Delete |
+| **Knowledge** | Add (website, online store, text, FAQ), Upload File (PDF, TXT, DOCX, CSV), Get, Get Many, Re-Index, Delete |
+| **Agent** | Get, Get Many |
+
+The agent keeps the whole conversation in mind, remembers each customer, uses your knowledge and online store, books appointments, finds places and distances, and closes sales, as in the rest of VeyCall. It answers right away on every channel, email included, and steps back in a conversation when you reply yourself (Record Business Reply) or stop it from the dashboard. To check replies first, choose Approval for a channel in the dashboard.
+
+### VeyCall Trigger
+
+Starts a workflow on **Lead Created** (optionally urgent leads only), **Lead Updated**, **Conversation Ended** or **Approved Reply to Send**. The trigger subscribes itself when the workflow is activated and unsubscribes when it is deactivated. Every event is signed by VeyCall and checked.
+
+## Example workflows
+
+- **Gmail**: Gmail Trigger > VeyCall Answer > Gmail Reply. Your own replies in the thread > VeyCall Record Business Reply. (With Approval: VeyCall Trigger "Approved Reply to Send" > Gmail Reply.)
+- **WhatsApp Business (Cloud API)**: WhatsApp Trigger > (voice note: download the media) > VeyCall Answer > WhatsApp Send (text, or the `audio` binary as a voice note).
+- **Slack or Mattermost**: new message > VeyCall Answer > post the reply in the thread. Your own messages in the thread > VeyCall Record Business Reply.
+- **New lead to your CRM**: VeyCall Trigger "Lead Created" > HubSpot, Pipedrive or Google Sheets, and a Slack message for urgent ones.
+- **Keep the agent up to date**: Schedule > VeyCall Knowledge Re-Index (your website and store every night).
+
+## Compatibility
+
+Tested with n8n 2.48 (n8n-workflow 2.x). Requires a VeyCall account with the **API and webhooks** activation.
+
+## Resources
+
+- [VeyCall n8n integration](https://veycall.com/integrations/n8n)
+- [Channels documentation](https://veycall.com/docs/channels)
+- [API reference](https://api.veycall.com/docs)
+- Support: support@veycall.com
