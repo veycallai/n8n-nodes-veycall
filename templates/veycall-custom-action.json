@@ -1,0 +1,90 @@
+{
+  "name": "VeyCall: custom action (create an order)",
+  "nodes": [
+    {
+      "id": "291e55a9-de52-5747-85c9-ae8f4bd7c112",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -500,
+        -380
+      ],
+      "parameters": {
+        "content": "## VeyCall: a custom action run by n8n\n\nGives your agent a new skill: here, **creating an order** during a call or a chat. When the workflow is activated, the action is added to your agent; it asks the customer for the product and quantity, confirms, then calls this workflow.\n\n1. **VeyCall Action Trigger**: your *VeyCall API* credential, then pick your agent. Change the action's name, *when to use it* and the information to collect as you like.\n2. **Do the work**: replace the sample with your shop, CRM or email nodes.\n3. Keep a node at the end that returns `{ ok, say, data }`: it's what the agent hears back. Answer within 8 seconds during a call.\n4. Activate. Deactivating removes the action from your agent.",
+        "width": 540,
+        "height": 500,
+        "color": 4
+      }
+    },
+    {
+      "id": "e5278f91-2ec8-5215-86ab-897cc9946571",
+      "name": "VeyCall Action Trigger",
+      "type": "n8n-nodes-veycall.veyCallActionTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "agentId": "",
+        "title": "Create an order",
+        "name": "create_order",
+        "description": "When the customer has confirmed the product and quantity they want to buy",
+        "parameters": {
+          "parameter": [
+            {
+              "name": "product",
+              "type": "string",
+              "description": "The product the customer wants",
+              "required": true
+            },
+            {
+              "name": "quantity",
+              "type": "integer",
+              "description": "How many",
+              "required": true
+            }
+          ]
+        },
+        "confirm": true
+      },
+      "webhookId": "veycall-create-order"
+    },
+    {
+      "id": "f9f6525e-cb0b-555a-b4ae-ef435f2ca356",
+      "name": "Do the work",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Your work goes here: create the order in your shop, check stock, open a ticket, send an email…\n// The VeyCall Action Trigger gives: action, parameters, customer, conversation, agent, language, test.\nconst p = $json.parameters ?? {};\nconst orderId = Math.floor(1000 + Math.random() * 9000); // replace with your shop's real order number\n\n// The last node's output goes back to the agent: say (what it can tell the customer), data (what it keeps).\nreturn {\n  json: {\n    ok: true,\n    say: `Order ${orderId} recorded: ${p.quantity ?? 1} x ${p.product}.${$json.test ? ' (test)' : ''}`,\n    data: { order_id: orderId },\n  },\n};"
+      }
+    }
+  ],
+  "connections": {
+    "VeyCall Action Trigger": {
+      "main": [
+        [
+          {
+            "node": "Do the work",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "A custom action for your VeyCall AI agent, run by n8n: the agent creates an order during a call or a chat."
+  },
+  "pinData": {}
+}

@@ -1,0 +1,218 @@
+{
+  "name": "VeyCall: Slack",
+  "nodes": [
+    {
+      "id": "291e55a9-de52-5747-85c9-ae8f4bd7c112",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -360
+      ],
+      "parameters": {
+        "content": "## VeyCall: Slack\n\nYour VeyCall agent answers messages in a Slack channel (a customer workspace, a shared channel, a support channel), **in the message's thread**.\n\n1. **New message** and **Reply in thread**: connect your Slack app (bot token with `chat:write`, `channels:history`; add the bot to the channel). Pick the channel in the trigger.\n2. **VeyCall node**: create a *VeyCall API* credential with your organization API key (`vc_live_…`, VeyCall dashboard; needs the *API and webhooks* activation), then pick your agent.\n3. Activate.\n\nMessages from bots (including this one) are skipped, so the agent never answers itself.\n\nTo make the agent step back when you answer in a thread, add a second Slack trigger on your own messages to **Record Business Reply** (VeyCall node). a customer yourself, **Record Business Reply** tells VeyCall: your agent steps back in that conversation for a few hours (its own replies are recognised and ignored).",
+        "width": 540,
+        "height": 520,
+        "color": 4
+      }
+    },
+    {
+      "id": "e25a6152-ce8f-5ece-8338-a73344ee075e",
+      "name": "New message",
+      "type": "n8n-nodes-base.slackTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "trigger": [
+          "message"
+        ],
+        "watchWorkspace": false,
+        "channelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f6d6934b-766f-5001-9a53-8a9189defb9c",
+      "name": "From a person?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4eff0157-155e-5311-a4c0-9632e8e65d37",
+              "leftValue": "={{ !$json.bot_id && !$json.subtype && $json.text ? 'yes' : '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "205ff145-43fc-50f0-b351-7991a9f971fe",
+      "name": "VeyCall answers",
+      "type": "n8n-nodes-veycall.veyCall",
+      "typeVersion": 1,
+      "position": [
+        440,
+        -80
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "answer",
+        "agentId": "",
+        "channel": "slack",
+        "conversationId": "={{ $json.channel }}:{{ $json.thread_ts ?? $json.ts }}",
+        "messageId": "={{ $json.client_msg_id ?? $json.ts }}",
+        "senderId": "={{ $json.user }}",
+        "text": "={{ $json.text }}",
+        "audioSource": "none",
+        "replyAs": "text",
+        "additionalFields": {}
+      }
+    },
+    {
+      "id": "8ccaae94-9280-56ce-b36a-38475cd686b1",
+      "name": "Reply to send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        -80
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dcfaad0a-33be-50fa-a7c3-e87c23740dbf",
+              "leftValue": "={{ $json.reply?.text ?? '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "79597528-6e84-5421-85d0-e95d495b2f04",
+      "name": "Reply in thread",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        880,
+        -160
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('New message').item.json.channel }}"
+        },
+        "messageType": "text",
+        "text": "={{ $('VeyCall answers').item.json.reply.text }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false,
+          "thread_ts": {
+            "replyValues": {
+              "thread_ts": "={{ $('New message').item.json.thread_ts ?? $('New message').item.json.ts }}"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "New message": {
+      "main": [
+        [
+          {
+            "node": "From a person?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "From a person?": {
+      "main": [
+        [
+          {
+            "node": "VeyCall answers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VeyCall answers": {
+      "main": [
+        [
+          {
+            "node": "Reply to send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply to send?": {
+      "main": [
+        [
+          {
+            "node": "Reply in thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Your VeyCall AI agent answers Slack messages in their thread."
+  },
+  "pinData": {}
+}

@@ -1,0 +1,305 @@
+{
+  "name": "VeyCall: Gmail",
+  "nodes": [
+    {
+      "id": "291e55a9-de52-5747-85c9-ae8f4bd7c112",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -340
+      ],
+      "parameters": {
+        "content": "## VeyCall: Gmail\n\nYour VeyCall agent answers new emails **in the same thread**.\n\n1. **Gmail Trigger** and the two Gmail nodes: connect your Gmail account. *Simplify* stays off so the full text and headers are read.\n2. **VeyCall node**: create a *VeyCall API* credential with your organization API key (`vc_live_…`, VeyCall dashboard; needs the *API and webhooks* activation), then pick your agent.\n3. Activate.\n\nAuto-replies, newsletters and no-reply senders are ignored and stay unread.\n\nWhen you answer a customer yourself, **Record Business Reply** tells VeyCall: your agent steps back in that conversation for a few hours (its own replies are recognised and ignored).",
+        "width": 520,
+        "height": 520,
+        "color": 4
+      }
+    },
+    {
+      "id": "58dd9b73-f9e1-5410-b03c-b46104747f7d",
+      "name": "New email",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "labelIds": [
+            "INBOX"
+          ],
+          "readStatus": "unread"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "236b1f17-f317-53f2-b307-39fa7ee5779c",
+      "name": "Read email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The email's text without the quoted history, and the headers VeyCall uses to skip auto-replies and lists.\nconst m = $json;\nconst headers = m.headers ?? {};\nconst header = (name) => {\n  const line = headers[name.toLowerCase()];\n  return line ? String(line).replace(/^[^:]+:\\s*/, '').trim() : '';\n};\nconst sender = m.from?.value?.[0] ?? {};\nlet text = String(m.text ?? '').replace(/\\r\\n/g, '\\n');\nconst quoted = text.search(/\\n(On .{4,300}wrote:|Le .{4,300}a écrit\\s?:|-{2,} ?Original Message ?-{2,}|-{2,} ?Message d'origine ?-{2,}|From: .+\\n(Sent|Date): |De ?: .+\\n(Envoyé|Date) ?: )/i);\nif (quoted > 0) text = text.slice(0, quoted);\ntext = text.split('\\n').filter((l) => !l.startsWith('>')).join('\\n').trim().slice(0, 8000);\nreturn {\n  json: {\n    id: m.id,\n    threadId: m.threadId,\n    text,\n    subject: m.subject ?? '',\n    from: sender.address ?? 'unknown',\n    name: sender.name ?? '',\n    metadata: JSON.stringify({\n      auto_submitted: header('auto-submitted'),\n      precedence: header('precedence'),\n      list_id: header('list-id'),\n      list_unsubscribe: header('list-unsubscribe') ? 'yes' : '',\n      x_autoreply: header('x-autoreply'),\n    }),\n  },\n};"
+      }
+    },
+    {
+      "id": "205ff145-43fc-50f0-b351-7991a9f971fe",
+      "name": "VeyCall answers",
+      "type": "n8n-nodes-veycall.veyCall",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "answer",
+        "agentId": "",
+        "channel": "gmail",
+        "conversationId": "={{ $json.threadId }}",
+        "messageId": "={{ $json.id }}",
+        "senderId": "={{ $json.from }}",
+        "text": "={{ $json.text }}",
+        "audioSource": "none",
+        "replyAs": "text",
+        "additionalFields": {
+          "senderName": "={{ $json.name }}",
+          "senderEmail": "={{ $json.from }}",
+          "subject": "={{ $json.subject }}",
+          "metadata": "={{ $json.metadata }}"
+        }
+      }
+    },
+    {
+      "id": "8ccaae94-9280-56ce-b36a-38475cd686b1",
+      "name": "Reply to send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dcfaad0a-33be-50fa-a7c3-e87c23740dbf",
+              "leftValue": "={{ $json.reply?.text ?? '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "48398ce4-e8c6-5678-932b-e1299b0f7975",
+      "name": "Reply in thread",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        -80
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "reply",
+        "messageId": "={{ $('Read email').item.json.id }}",
+        "emailType": "text",
+        "message": "={{ $('VeyCall answers').item.json.reply.text }}",
+        "options": {
+          "appendAttribution": false,
+          "replyToSenderOnly": true
+        }
+      }
+    },
+    {
+      "id": "374990d1-fb13-54e9-b994-896c5892bad4",
+      "name": "Mark as read",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1100,
+        -80
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "markAsRead",
+        "messageId": "={{ $('Read email').item.json.id }}"
+      }
+    },
+    {
+      "id": "f8aa92c4-1fda-5c7d-86c9-85b34f104d99",
+      "name": "You sent an email",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "labelIds": [
+            "SENT"
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "31461c31-ff5e-51bf-962e-f5fe4912f78d",
+      "name": "Read your email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Your own email in a thread: its text without the quoted history.\nlet text = String($json.text ?? '').replace(/\\r\\n/g, '\\n');\nconst quoted = text.search(/\\n(On .{4,300}wrote:|Le .{4,300}a écrit\\s?:|-{2,} ?Original Message ?-{2,})/i);\nif (quoted > 0) text = text.slice(0, quoted);\nreturn { json: { threadId: $json.threadId, text: text.trim().slice(0, 8000) } };"
+      }
+    },
+    {
+      "id": "4d2cf3d1-8a34-5d5e-9023-fa5c6f71ac4d",
+      "name": "Record Business Reply",
+      "type": "n8n-nodes-veycall.veyCall",
+      "typeVersion": 1,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "business",
+        "agentId": "",
+        "channel": "gmail",
+        "conversationId": "={{ $json.threadId }}",
+        "text": "={{ $json.text }}"
+      }
+    }
+  ],
+  "connections": {
+    "New email": {
+      "main": [
+        [
+          {
+            "node": "Read email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read email": {
+      "main": [
+        [
+          {
+            "node": "VeyCall answers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VeyCall answers": {
+      "main": [
+        [
+          {
+            "node": "Reply to send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply to send?": {
+      "main": [
+        [
+          {
+            "node": "Reply in thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply in thread": {
+      "main": [
+        [
+          {
+            "node": "Mark as read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "You sent an email": {
+      "main": [
+        [
+          {
+            "node": "Read your email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read your email": {
+      "main": [
+        [
+          {
+            "node": "Record Business Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Your VeyCall AI agent answers your Gmail emails in the same thread, and steps back when you reply yourself."
+  },
+  "pinData": {}
+}

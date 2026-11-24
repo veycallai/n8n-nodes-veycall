@@ -1,0 +1,234 @@
+{
+  "name": "VeyCall: Messenger",
+  "nodes": [
+    {
+      "id": "291e55a9-de52-5747-85c9-ae8f4bd7c112",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -520,
+        -380
+      ],
+      "parameters": {
+        "content": "## VeyCall: Messenger\n\nYour VeyCall agent answers your Facebook Page's Messenger messages.\n\n1. In your Meta app, add *Messenger* and subscribe your Page to `messages`. Webhook callback URL: this workflow's **production URL**; verify token: the one you put in **Verify**.\n2. **Send reply**: create a *Header Auth* credential named **Facebook Page token** (name `Authorization`, value `Bearer <page access token>`).\n3. **VeyCall node**: create a *VeyCall API* credential with your organization API key (`vc_live_…`, VeyCall dashboard; needs the *API and webhooks* activation), then pick your agent.\n4. Activate.\n\nMeta allows free replies within 24 hours of the customer's last message. The same pattern works for Instagram messages (Instagram messaging webhook and the Graph API).",
+        "width": 560,
+        "height": 500,
+        "color": 4
+      }
+    },
+    {
+      "id": "1c2b2d2d-f946-5361-98ca-17f8ccc7cbeb",
+      "name": "Messenger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "multipleMethods": true,
+        "httpMethod": [
+          "GET",
+          "POST"
+        ],
+        "path": "veycall-messenger",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "veycall-messenger"
+    },
+    {
+      "id": "7f60c118-1fb1-525b-809d-1e8964c95450",
+      "name": "Verify",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        -140
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.verify_token'] === 'REPLACE_WITH_YOUR_VERIFY_TOKEN' ? $json.query['hub.challenge'] : 'forbidden' }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "e67b1dbb-30a5-5f8d-bd47-a7554cd1f721",
+      "name": "OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        80
+      ],
+      "parameters": {
+        "respondWith": "noData",
+        "options": {}
+      }
+    },
+    {
+      "id": "8ec23abb-46f7-5015-aba7-7844afba247a",
+      "name": "Read messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        80
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Messenger webhook events -> one item per customer message (echoes of the page's own messages are skipped).\nconst out = [];\nfor (const entry of $json.body?.entry ?? []) {\n  for (const e of entry.messaging ?? []) {\n    if (!e.message || e.message.is_echo || !e.message.text) continue;\n    out.push({ json: { psid: e.sender.id, page: e.recipient.id, mid: e.message.mid, text: e.message.text.slice(0, 8000) } });\n  }\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "205ff145-43fc-50f0-b351-7991a9f971fe",
+      "name": "VeyCall answers",
+      "type": "n8n-nodes-veycall.veyCall",
+      "typeVersion": 1,
+      "position": [
+        680,
+        80
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "answer",
+        "agentId": "",
+        "channel": "messenger",
+        "conversationId": "={{ $json.psid }}",
+        "messageId": "={{ $json.mid }}",
+        "senderId": "={{ $json.psid }}",
+        "text": "={{ $json.text }}",
+        "audioSource": "none",
+        "replyAs": "text",
+        "additionalFields": {}
+      }
+    },
+    {
+      "id": "8ccaae94-9280-56ce-b36a-38475cd686b1",
+      "name": "Reply to send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        80
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dcfaad0a-33be-50fa-a7c3-e87c23740dbf",
+              "leftValue": "={{ $json.reply?.text ?? '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "55f1269c-d9f0-5635-902e-50687b5ccaa0",
+      "name": "Send reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        40
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/me/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ recipient: { id: $('Read messages').item.json.psid }, messaging_type: 'RESPONSE', message: { text: $json.reply.text } }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Messenger": {
+      "main": [
+        [
+          {
+            "node": "Verify",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OK": {
+      "main": [
+        [
+          {
+            "node": "Read messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read messages": {
+      "main": [
+        [
+          {
+            "node": "VeyCall answers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VeyCall answers": {
+      "main": [
+        [
+          {
+            "node": "Reply to send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply to send?": {
+      "main": [
+        [
+          {
+            "node": "Send reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Your VeyCall AI agent answers your Facebook Page's Messenger messages."
+  },
+  "pinData": {}
+}

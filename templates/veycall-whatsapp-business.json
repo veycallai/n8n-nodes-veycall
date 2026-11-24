@@ -1,0 +1,427 @@
+{
+  "name": "VeyCall: WhatsApp Business (text and voice notes)",
+  "nodes": [
+    {
+      "id": "291e55a9-de52-5747-85c9-ae8f4bd7c112",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -520,
+        -420
+      ],
+      "parameters": {
+        "content": "## VeyCall: WhatsApp Business\n\nYour VeyCall agent answers your WhatsApp Business number (Meta's Cloud API): **texts get a text, voice notes get a voice note in your agent's voice.**\n\n1. **WhatsApp Trigger**: connect your Meta app (*WhatsApp OAuth*). Read receipts are filtered out.\n2. **Get the voice note**, **Download**, **Send text**, **Send voice note**: your *WhatsApp API* credential (access token and business account id). Replies go from the number that received the message.\n3. **VeyCall node**: create a *VeyCall API* credential with your organization API key (`vc_live_…`, VeyCall dashboard; needs the *API and webhooks* activation), then pick your agent.\n4. Activate.\n\nMeta allows free replies within 24 hours of the customer's last message.\n\nPrefer your usual WhatsApp number with no Meta setup? Use *Integrations › WhatsApp* in VeyCall (QR code) instead.",
+        "width": 560,
+        "height": 560,
+        "color": 4
+      }
+    },
+    {
+      "id": "8d670111-8480-5cfb-961d-722090922f99",
+      "name": "WhatsApp Trigger",
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {
+          "messageStatusUpdates": []
+        }
+      }
+    },
+    {
+      "id": "8ec23abb-46f7-5015-aba7-7844afba247a",
+      "name": "Read messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// WhatsApp Cloud API events -> one item per customer message (text, button, caption or voice note).\nconst out = [];\nfor (const item of $input.all()) {\n  const v = item.json;\n  for (const msg of v.messages ?? []) {\n    const contact = (v.contacts ?? []).find((c) => c.wa_id === msg.from) ?? v.contacts?.[0] ?? {};\n    const text = msg.text?.body ?? msg.button?.text ?? msg.interactive?.button_reply?.title ?? msg.interactive?.list_reply?.title ?? msg.image?.caption ?? msg.video?.caption ?? msg.document?.caption ?? '';\n    out.push({\n      json: {\n        phone_number_id: v.metadata?.phone_number_id,\n        from: msg.from,\n        name: contact.profile?.name ?? '',\n        id: msg.id,\n        text: String(text).slice(0, 8000),\n        audio_id: msg.type === 'audio' ? msg.audio?.id ?? '' : '',\n      },\n    });\n  }\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "08c108ee-3b2d-579f-adb7-274c738153ba",
+      "name": "Voice note?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "87e7f18d-9d27-568b-bf0b-91004f6ce47d",
+              "leftValue": "={{ $json.audio_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "76652492-b493-5577-8913-d617a0cbb434",
+      "name": "Get the voice note",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        -120
+      ],
+      "parameters": {
+        "resource": "media",
+        "operation": "mediaUrlGet",
+        "mediaGetId": "={{ $json.audio_id }}"
+      }
+    },
+    {
+      "id": "6ea8fbab-26d1-550d-a0cb-73b01aa5cf27",
+      "name": "Download",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        -120
+      ],
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "9ab7c799-454c-5d09-b42d-e98ebf867de1",
+      "name": "VeyCall answers the voice note",
+      "type": "n8n-nodes-veycall.veyCall",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        -120
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "answer",
+        "agentId": "",
+        "channel": "whatsapp",
+        "conversationId": "={{ $('Read messages').item.json.from }}",
+        "messageId": "={{ $('Read messages').item.json.id }}",
+        "senderId": "={{ $('Read messages').item.json.from }}",
+        "text": "",
+        "audioSource": "binary",
+        "replyAs": "auto",
+        "additionalFields": {
+          "senderName": "={{ $('Read messages').item.json.name }}",
+          "senderPhone": "=+{{ $('Read messages').item.json.from }}"
+        },
+        "binaryPropertyName": "data"
+      }
+    },
+    {
+      "id": "1a8f2cd5-ae34-537d-b5e5-8f586e842429",
+      "name": "VeyCall answers the text",
+      "type": "n8n-nodes-veycall.veyCall",
+      "typeVersion": 1,
+      "position": [
+        660,
+        140
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "answer",
+        "agentId": "",
+        "channel": "whatsapp",
+        "conversationId": "={{ $json.from }}",
+        "messageId": "={{ $json.id }}",
+        "senderId": "={{ $json.from }}",
+        "text": "={{ $json.text }}",
+        "audioSource": "none",
+        "replyAs": "text",
+        "additionalFields": {
+          "senderName": "={{ $json.name }}",
+          "senderPhone": "=+{{ $json.from }}"
+        }
+      }
+    },
+    {
+      "id": "f59f0609-ef58-55d7-8d51-7ace6e935cf7",
+      "name": "Text to send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        140
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a7b987b0-c06b-55be-8e52-e8db08733c71",
+              "leftValue": "={{ $json.reply?.text ?? '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "53d1cd43-443f-5a49-b5b7-dba098568961",
+      "name": "Send text",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        100
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumberId": "={{ $('Read messages').item.json.phone_number_id }}",
+        "recipientPhoneNumber": "={{ $('Read messages').item.json.from }}",
+        "messageType": "text",
+        "textBody": "={{ $json.reply.text }}",
+        "additionalFields": {}
+      }
+    },
+    {
+      "id": "61d17504-41c2-55e1-bb74-9051f86d4329",
+      "name": "Voice reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        -120
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a72aaeca-7785-5312-a255-89bcba8af403",
+              "leftValue": "={{ $json.reply?.audio ? 'yes' : '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a9c97fd4-bf0e-5812-a775-b089b4f5b3de",
+      "name": "Send voice note",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        1540,
+        -160
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumberId": "={{ $('Read messages').item.json.phone_number_id }}",
+        "recipientPhoneNumber": "={{ $('Read messages').item.json.from }}",
+        "messageType": "audio",
+        "mediaPath": "useMedian8n",
+        "mediaPropertyName": "audio",
+        "additionalFields": {}
+      }
+    },
+    {
+      "id": "be52391c-8017-5fba-9267-9e5c2c065de3",
+      "name": "Send its text instead",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        1540,
+        20
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumberId": "={{ $('Read messages').item.json.phone_number_id }}",
+        "recipientPhoneNumber": "={{ $('Read messages').item.json.from }}",
+        "messageType": "text",
+        "textBody": "={{ $json.reply?.text ?? '' }}",
+        "additionalFields": {}
+      }
+    }
+  ],
+  "connections": {
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read messages": {
+      "main": [
+        [
+          {
+            "node": "Voice note?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voice note?": {
+      "main": [
+        [
+          {
+            "node": "Get the voice note",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "VeyCall answers the text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get the voice note": {
+      "main": [
+        [
+          {
+            "node": "Download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download": {
+      "main": [
+        [
+          {
+            "node": "VeyCall answers the voice note",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VeyCall answers the voice note": {
+      "main": [
+        [
+          {
+            "node": "Voice reply?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voice reply?": {
+      "main": [
+        [
+          {
+            "node": "Send voice note",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send its text instead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VeyCall answers the text": {
+      "main": [
+        [
+          {
+            "node": "Text to send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Text to send?": {
+      "main": [
+        [
+          {
+            "node": "Send text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Your VeyCall AI agent answers your WhatsApp Business number: texts with text, voice notes with a voice note."
+  },
+  "pinData": {}
+}

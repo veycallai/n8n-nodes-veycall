@@ -1,0 +1,110 @@
+{
+  "name": "VeyCall: Mattermost",
+  "nodes": [
+    {
+      "id": "291e55a9-de52-5747-85c9-ae8f4bd7c112",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -320
+      ],
+      "parameters": {
+        "content": "## VeyCall: Mattermost\n\nYour VeyCall agent answers messages in a Mattermost channel, **as a threaded reply**, with no Mattermost credential: it uses an outgoing webhook.\n\n1. In Mattermost: *Integrations › Outgoing Webhooks › Add*. Content type `application/json`, pick the channel (and trigger words if you want), callback URL: this workflow's **production URL** (Webhook node).\n2. **VeyCall node**: create a *VeyCall API* credential with your organization API key (`vc_live_…`, VeyCall dashboard; needs the *API and webhooks* activation), then pick your agent.\n3. Activate.\n\nThe webhook's own replies don't trigger it again.",
+        "width": 520,
+        "height": 420,
+        "color": 4
+      }
+    },
+    {
+      "id": "bd10a050-89e8-5dc3-a142-db9515b192cf",
+      "name": "Mattermost message",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "veycall-mattermost",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "veycall-mattermost"
+    },
+    {
+      "id": "205ff145-43fc-50f0-b351-7991a9f971fe",
+      "name": "VeyCall answers",
+      "type": "n8n-nodes-veycall.veyCall",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "answer",
+        "agentId": "",
+        "channel": "mattermost",
+        "conversationId": "={{ $json.body.channel_id }}",
+        "messageId": "={{ $json.body.post_id }}",
+        "senderId": "={{ $json.body.user_id }}",
+        "text": "={{ $json.body.text }}",
+        "audioSource": "none",
+        "replyAs": "text",
+        "additionalFields": {
+          "senderName": "={{ $json.body.user_name }}"
+        }
+      }
+    },
+    {
+      "id": "0db14161-f4ea-533b-a963-35b5b7449b33",
+      "name": "Reply in thread",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.reply?.text ? { text: $json.reply.text, response_type: 'comment' } : {}) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Mattermost message": {
+      "main": [
+        [
+          {
+            "node": "VeyCall answers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VeyCall answers": {
+      "main": [
+        [
+          {
+            "node": "Reply in thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Your VeyCall AI agent answers Mattermost messages as threaded replies, through an outgoing webhook."
+  },
+  "pinData": {}
+}

@@ -1,0 +1,181 @@
+{
+  "name": "VeyCall: new lead to Google Sheets",
+  "nodes": [
+    {
+      "id": "291e55a9-de52-5747-85c9-ae8f4bd7c112",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -300
+      ],
+      "parameters": {
+        "content": "## VeyCall: new lead to Google Sheets\n\nEvery lead your agent captures (calls, website, WhatsApp, email…) is added as a row.\n\n1. **VeyCall Trigger**: your *VeyCall API* credential. Activating the workflow subscribes it in VeyCall; deactivating unsubscribes.\n2. **Add the lead**: connect Google Sheets and pick a sheet with the columns *Date, Name, Phone, Email, Need, Priority, Status, Agent, Link*.\n3. Activate.",
+        "width": 500,
+        "height": 380,
+        "color": 4
+      }
+    },
+    {
+      "id": "5a4cc45d-3ea2-521b-86f5-1adbf67ab626",
+      "name": "New lead",
+      "type": "n8n-nodes-veycall.veyCallTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "events": [
+          "lead.created"
+        ],
+        "urgentOnly": false
+      },
+      "webhookId": "veycall-new-lead"
+    },
+    {
+      "id": "6df8f34e-0bf2-5779-9c73-eec2a8fdfb60",
+      "name": "Add the lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.data.created_at }}",
+            "Name": "={{ $json.data.name ?? '' }}",
+            "Phone": "={{ $json.data.phone ?? '' }}",
+            "Email": "={{ $json.data.email ?? '' }}",
+            "Need": "={{ $json.data.notes ?? '' }}",
+            "Priority": "={{ $json.data.priority }}",
+            "Status": "={{ $json.data.status }}",
+            "Agent": "={{ $json.data.agent?.name ?? '' }}",
+            "Link": "={{ $json.data.url }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Need",
+              "displayName": "Need",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Priority",
+              "displayName": "Priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Agent",
+              "displayName": "Agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Link",
+              "displayName": "Link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "New lead": {
+      "main": [
+        [
+          {
+            "node": "Add the lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Every lead your VeyCall AI agent captures is added to a Google Sheet."
+  },
+  "pinData": {}
+}
