@@ -24,8 +24,8 @@ jobs:
       - run: npm ci
       - name: The tag matches package.json
         run: test "v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
-      - run: npm run lint
-      - run: npm run build
-      - run: npm publish --provenance --access public
+      # n8n's release command: lint, build, then npm publish with provenance (it sets RELEASE_MODE, which
+      # the prepublishOnly guard requires, so a plain `npm publish` is refused).
+      - run: npm run release
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
