@@ -27,7 +27,8 @@
     "credentials": ["dist/credentials/VeyCallApi.credentials.js"],
     "nodes": [
       "dist/nodes/VeyCall/VeyCall.node.js",
-      "dist/nodes/VeyCall/VeyCallTrigger.node.js"
+      "dist/nodes/VeyCall/VeyCallTrigger.node.js",
+      "dist/nodes/VeyCall/VeyCallActionTrigger.node.js"
     ]
   },
   "devDependencies": {

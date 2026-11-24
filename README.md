@@ -30,6 +30,10 @@ The key acts for your organization. It can answer messages, manage leads, conver
 
 The agent keeps the whole conversation in mind, remembers each customer, uses your knowledge and online store, books appointments, finds places and distances, and closes sales, as in the rest of VeyCall. It answers right away on every channel, email included, and steps back in a conversation when you reply yourself (Record Business Reply) or stop it from the dashboard. To check replies first, choose Approval for a channel in the dashboard.
 
+### VeyCall Action Trigger
+
+Gives your agent a new skill run by this workflow. Set the action (agent, name, when to use it, the information to collect, confirmation): when the workflow is activated, the action is added to the agent, and the agent calls it during conversations with the details it collected. The workflow does the work (create an order in Shopify, open a ticket, send an email…) and its last node's output goes back to the agent: `{ "ok": true, "say": "…", "data": { … } }`, or any JSON. Calls are signed by VeyCall and checked; answer within 8 seconds during a call. See [custom actions](https://veycall.com/docs/actions).
+
 ### VeyCall Trigger
 
 Starts a workflow on **Lead Created** (optionally urgent leads only), **Lead Updated**, **Conversation Ended** or **Approved Reply to Send**. The trigger subscribes itself when the workflow is activated and unsubscribes when it is deactivated. Every event is signed by VeyCall and checked.

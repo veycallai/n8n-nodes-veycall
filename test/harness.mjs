@@ -10,6 +10,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { VeyCall } = require('../dist/nodes/VeyCall/VeyCall.node.js');
 const { VeyCallTrigger } = require('../dist/nodes/VeyCall/VeyCallTrigger.node.js');
+const { VeyCallActionTrigger } = require('../dist/nodes/VeyCall/VeyCallActionTrigger.node.js');
 const { VeyCallApi } = require('../dist/credentials/VeyCallApi.credentials.js');
 
 const credentials = { apiKey: process.env.VEYCALL_API_KEY, baseUrl: process.env.API_URL ?? 'http://127.0.0.1:8787/api/v1' };
@@ -231,6 +232,70 @@ try {
 	check('unsubscribes when the workflow is deactivated', !staticData.webhookId && !(await hooks.checkExists.call(hookCtx)));
 	server.close();
 	for (const id of [lead.id, newLead.id]) await run({ resource: 'lead', operation: 'delete', leadId: id });
+
+	console.log('Action trigger');
+	const actionData = {};
+	let lastNodeOutput = { ok: true, say: 'Ticket 77 opened.', data: { ticket: 77 } };
+	const actionServer = createServer((req, res) => {
+		let raw = '';
+		req.on('data', (c) => (raw += c));
+		req.on('end', async () => {
+			const fake = { headers: req.headers, rawBody: Buffer.from(raw), body: JSON.parse(raw || '{}') };
+			let status = 200;
+			const response = { status: (x) => ((status = x), response), json: () => response };
+			const result = await new VeyCallActionTrigger().webhook.call({
+				getRequestObject: () => fake,
+				getResponseObject: () => response,
+				getWorkflowStaticData: () => actionData,
+				getNode: () => node,
+				helpers,
+			});
+			// n8n runs the workflow; with responseMode lastNode, the last node's JSON is the answer.
+			if (result.noWebhookResponse) return res.writeHead(status, { 'content-type': 'application/json' }).end('{"ok":false,"error":"Invalid signature"}');
+			actionData.lastInput = result.workflowData[0][0].json;
+			res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(lastNodeOutput));
+		});
+	});
+	await new Promise((r) => actionServer.listen(0, '127.0.0.1', r));
+	const actionUrl = `http://127.0.0.1:${actionServer.address().port}/webhook/abc/action`;
+	const actionParams = {
+		agentId: AGENT,
+		title: 'Open a ticket',
+		name: 'open_ticket',
+		description: 'When the customer reports a problem with an order',
+		parameters: { parameter: [{ name: 'problem', type: 'string', description: 'What went wrong', required: true }] },
+		confirm: false,
+	};
+	const actionCtx = {
+		getWorkflowStaticData: () => actionData,
+		getNodeWebhookUrl: () => actionUrl,
+		getNodeParameter: (n, f) => (n in actionParams ? actionParams[n] : f),
+		getCredentials: async () => credentials,
+		getNode: () => node,
+		helpers,
+	};
+	const actionHooks = new VeyCallActionTrigger().webhookMethods.default;
+	check('the action does not exist yet', !(await actionHooks.checkExists.call(actionCtx)));
+	await actionHooks.create.call(actionCtx);
+	check('activating the workflow adds the action to the agent', /^act_/.test(actionData.actionId ?? '') && /^whsec_/.test(actionData.secret ?? ''), actionData);
+	check('…and finds it again', await actionHooks.checkExists.call(actionCtx));
+	const tested = await httpRequest({
+		method: 'POST',
+		baseURL: credentials.baseUrl,
+		url: `/agents/${AGENT}/actions/${actionData.actionId}/test`,
+		body: { parameters: { problem: 'Broken zip' }, customer: { name: 'Léa' } },
+	});
+	check('VeyCall calls the workflow (signature checked) and the last node answers the agent', tested.data.ok === true && tested.data.result.say === 'Ticket 77 opened.' && tested.data.result.data?.ticket === 77, tested.data);
+	check('the workflow gets the parameters and the customer', actionData.lastInput?.parameters?.problem === 'Broken zip' && actionData.lastInput?.customer?.name === 'Léa', actionData.lastInput);
+	lastNodeOutput = { status: 'opened', id: 78 };
+	const plain = await httpRequest({ method: 'POST', baseURL: credentials.baseUrl, url: `/agents/${AGENT}/actions/${actionData.actionId}/test`, body: { parameters: { problem: 'Late' } } });
+	check('any JSON from the last node reaches the agent as data', plain.data.ok === true && plain.data.result.data?.id === 78, plain.data);
+	const forgedAction = await fetch(actionUrl, { method: 'POST', headers: { 'content-type': 'application/json', 'x-veycall-timestamp': String(Math.floor(Date.now() / 1000)), 'x-veycall-signature': 'v1=00' }, body: '{"action":"open_ticket"}' });
+	check('a forged call is refused (401)', forgedAction.status === 401);
+	await actionHooks.delete.call(actionCtx);
+	const left = await httpRequest({ method: 'GET', baseURL: credentials.baseUrl, url: `/agents/${AGENT}/actions` });
+	check('deactivating the workflow removes the action', !left.data.some((a) => a.name === 'open_ticket') && !actionData.actionId, left.data);
+	actionServer.close();
 } catch (err) {
 	failed++;
 	console.log('  ✗ stopped:', err?.message, err?.description ?? '', err?.stack?.split('\n').slice(1, 3).join(' | '));
