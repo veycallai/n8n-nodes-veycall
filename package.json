@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-veycall",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "VeyCall for n8n: your AI agent answers on Gmail, Messenger, Slack, Mattermost, WhatsApp Business and any other platform (text and voice notes), and your leads, conversations and knowledge are one node away.",
   "keywords": [
     "n8n-community-node-package",
