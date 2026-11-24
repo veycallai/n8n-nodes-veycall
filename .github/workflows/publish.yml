@@ -1,6 +1,7 @@
 # Publishes n8n-nodes-veycall to npm with a provenance statement, as n8n requires for verified community nodes.
 # Runs when a version tag is pushed:  npm version patch && git push --follow-tags
-# Needs the repository secret NPM_TOKEN (an npm automation token with publish rights on n8n-nodes-veycall).
+# Authentication: npm Trusted Publishing (OIDC) for veycallai/n8n-nodes-veycall, workflow publish.yml.
+# No secret needed; an NPM_TOKEN secret is still used if one is set.
 name: Publish to npm
 
 on:
@@ -19,13 +20,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
           cache: npm
+      # Trusted Publishing needs npm 11.5.1 or later.
+      - run: npm install -g npm@latest
       - run: npm ci
       - name: The tag matches package.json
         run: test "v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
       # n8n's release command: lint, build, then npm publish with provenance (it sets RELEASE_MODE, which
       # the prepublishOnly guard requires, so a plain `npm publish` is refused).
-      - run: npm run release
+      - name: Release
+        run: |
+          [ -n "$NPM_TOKEN" ] && npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
+          npm run release
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
