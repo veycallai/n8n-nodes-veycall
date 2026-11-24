@@ -1,0 +1,31 @@
+# Publishes n8n-nodes-veycall to npm with a provenance statement, as n8n requires for verified community nodes.
+# Runs when a version tag is pushed:  npm version patch && git push --follow-tags
+# Needs the repository secret NPM_TOKEN (an npm automation token with publish rights on n8n-nodes-veycall).
+name: Publish to npm
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write # npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - run: npm ci
+      - name: The tag matches package.json
+        run: test "v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+      - run: npm run lint
+      - run: npm run build
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

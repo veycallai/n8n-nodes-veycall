@@ -12,8 +12,20 @@
   ],
   "license": "MIT",
   "homepage": "https://veycall.com/integrations/n8n",
-  "author": { "name": "VeyCall", "email": "support@veycall.com" },
-  "files": ["dist"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/veycallai/n8n-nodes-veycall.git"
+  },
+  "bugs": {
+    "url": "https://github.com/veycallai/n8n-nodes-veycall/issues"
+  },
+  "author": {
+    "name": "VeyCall",
+    "email": "support@veycall.com"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "n8n-node build",
     "dev": "n8n-node dev",
@@ -24,7 +36,9 @@
   "n8n": {
     "n8nNodesApiVersion": 1,
     "strict": true,
-    "credentials": ["dist/credentials/VeyCallApi.credentials.js"],
+    "credentials": [
+      "dist/credentials/VeyCallApi.credentials.js"
+    ],
     "nodes": [
       "dist/nodes/VeyCall/VeyCall.node.js",
       "dist/nodes/VeyCall/VeyCallTrigger.node.js",
@@ -39,5 +53,7 @@
     "release-it": "^19.0.4",
     "typescript": "5.9.2"
   },
-  "peerDependencies": { "n8n-workflow": "*" }
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
 }
